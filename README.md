@@ -39,16 +39,83 @@ The [Tekton task definitions](.tekton/tasks.yml) provide:
   the shared `source` workspace before a new checkout.
 - `nose`: installs the project dependencies in an isolated environment and
   runs the same unit tests and coverage threshold used by GitHub Actions.
+- `clone-source`, `flake8`, `build-image`, and `deploy-app`: check out the
+  repository, lint the code, build the container, and deploy the tested image.
 
-In the course's OpenShift project, register the tasks with:
+The [pipeline](.tekton/pipeline.yml) runs these stages in order:
 
-```bash
-oc apply -f .tekton/tasks.yml
+```text
+cleanup → clone → lint → test → build → deploy
 ```
 
-Bind both tasks to the pipeline's shared persistent workspace. Run cleanup
-before cloning the repository, and run nose after cloning and before building
-and deploying the application.
+The build uses OpenShift's binary Docker build with the tested source from
+the shared workspace. Deployment selects the resulting image by digest and
+waits for the application's health check to pass.
+
+## Run in the OpenShift lab
+
+The lab needs OpenShift Pipelines with the `tekton.dev/v1beta1` API, a default
+storage class, and the OpenShift build service and internal image registry.
+Use the terminal and assigned OpenShift project in the Skills Network lab.
+
+Clone the project if it is not already present:
+
+```bash
+git clone https://github.com/felonardo/ci-cd-final-project.git
+cd ci-cd-final-project
+```
+
+Check the logged-in account and assigned project, then create the resources:
+
+```bash
+oc whoami
+oc project
+oc apply -f .openshift/resources.yml
+oc apply -f .tekton/tasks.yml
+oc apply -f .tekton/pipeline.yml
+oc create -f .tekton/pipelinerun.yml
+```
+
+The resources include a 1 GiB PVC named `pipeline-pvc`, a service account with
+namespace-scoped build/deployment permissions, an ImageStream, a BuildConfig,
+a Deployment, a Service, and a Route. The Deployment starts with zero replicas;
+the deploy task starts one replica after the image build succeeds.
+
+Monitor the run in **Pipelines → ci-cd-final-project → PipelineRuns** or use:
+
+```bash
+oc get pipelineruns
+oc get taskruns
+oc get pvc pipeline-pvc
+oc get pods
+```
+
+Start another run with `oc create -f .tekton/pipelinerun.yml` after the previous
+run finishes. Runs share the same workspace and application.
+
+After the pipeline succeeds, request the application and save its actual logs:
+
+```bash
+APP_HOST=$(oc get route ci-cd-final-project -o jsonpath='{.spec.host}')
+curl --fail "http://$APP_HOST/"
+curl --fail "http://$APP_HOST/health"
+oc logs deployment/ci-cd-final-project --timestamps=true > oc-pipelines-app-logs.txt
+```
+
+## Submission evidence
+
+| Requirement | File or evidence |
+| --- | --- |
+| Project name | `README.md` |
+| GitHub Actions lint and unit tests | `.github/workflows/workflow.yml` |
+| Tekton cleanup and nose tasks | `.tekton/tasks.yml` |
+| PVC details, showing Bound status | `oc-pipelines-console-pvc-details.png` |
+| Successful GitHub Actions output with every step | Text from the successful Actions run |
+| OpenShift pipeline details | `oc-pipelines-oc-final.png` |
+| Successful OpenShift pipeline run | `oc-pipelines-oc-green.png` |
+| Application logs | Text from `oc-pipelines-app-logs.txt` |
+
+Capture screenshots and logs from the actual completed runs in the lab.
 
 ## API endpoints
 

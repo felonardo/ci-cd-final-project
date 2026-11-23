@@ -1,0 +1,58 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: ci-cd-final-project
+spec:
+  params:
+    - name: git-url
+      type: string
+      default: https://github.com/felonardo/ci-cd-final-project.git
+    - name: git-revision
+      type: string
+      default: main
+  workspaces:
+    - name: pipeline-workspace
+  tasks:
+    - name: cleanup
+      taskRef:
+        name: cleanup
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: clone
+      runAfter: [cleanup]
+      taskRef:
+        name: clone-source
+      params:
+        - name: git-url
+          value: $(params.git-url)
+        - name: git-revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: lint
+      runAfter: [clone]
+      taskRef:
+        name: flake8
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: test
+      runAfter: [lint]
+      taskRef:
+        name: nose
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: build
+      runAfter: [test]
+      taskRef:
+        name: build-image
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: deploy
+      runAfter: [build]
+      taskRef:
+        name: deploy-app

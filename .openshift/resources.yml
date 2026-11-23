@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pipeline-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-cd-pipeline
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-cd-pipeline
+rules:
+  - apiGroups: [build.openshift.io]
+    resources: [buildconfigs]
+    verbs: [get]
+  - apiGroups: [build.openshift.io]
+    resources: [buildconfigs/instantiatebinary]
+    verbs: [create]
+  - apiGroups: [build.openshift.io]
+    resources: [builds]
+    verbs: [get, list, watch]
+  - apiGroups: [build.openshift.io]
+    resources: [builds/log]
+    verbs: [get]
+  - apiGroups: [image.openshift.io]
+    resources: [imagestreamtags]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [deployments, deployments/scale]
+    verbs: [get, list, watch, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-cd-pipeline
+subjects:
+  - kind: ServiceAccount
+    name: ci-cd-pipeline
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-cd-pipeline
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: ci-cd-final-project
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: ci-cd-final-project
+spec:
+  runPolicy: Serial
+  source:
+    type: Binary
+    binary: {}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: ci-cd-final-project:latest
+  triggers: []
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ci-cd-final-project
+  labels:
+    app: ci-cd-final-project
+spec:
+  # The deploy task starts the application after the first image is built.
+  replicas: 0
+  selector:
+    matchLabels:
+      app: ci-cd-final-project
+  template:
+    metadata:
+      labels:
+        app: ci-cd-final-project
+    spec:
+      containers:
+        - name: counter
+          image: ci-cd-final-project:latest
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ci-cd-final-project
+spec:
+  selector:
+    app: ci-cd-final-project
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ci-cd-final-project
+spec:
+  to:
+    kind: Service
+    name: ci-cd-final-project
+  port:
+    targetPort: http
