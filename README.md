@@ -1,38 +1,70 @@
-# CI/CD Tools and Practices Final Project Template
+# CI/CD Final Project: Counter Service
 
-This repository contains the template to be used for the Final Project for the Coursera course **CI/CD Tools and Practices**.
+Final project for the Coursera course **CI/CD Tools and Practices**.
 
-## Usage
+This project uses a Python Flask REST API to create, list, read, increment,
+and delete named counters. Counters are stored in memory and reset when the
+application restarts.
 
-This repository is to be used as a template to create your own repository in your own GitHub account. No need to Fork it as it has been set up as a Template. This will avoid confusion when making Pull Requests in the future.
+## Continuous integration
 
-From the GitHub **Code** page, press the green **Use this template** button to create your own repository from this template.
+The [GitHub Actions workflow](.github/workflows/workflow.yml) runs on pushes
+and pull requests to `main`, and can also be started manually. It checks out
+the code, sets up Python 3.9, installs dependencies, lints with flake8, and
+runs the nose unit tests with a minimum of 90% coverage.
 
-Name your repo: `ci-cd-final-project`.
+Python 3.9 matches the course template and its nose dependencies.
 
-## Setup
-
-After entering the lab environment you will need to run the `setup.sh` script in the `./bin` folder to install the prerequisite software.
-
-```bash
-bash bin/setup.sh
-```
-
-Then you must exit the shell and start a new one for the Python virtual environment to be activated.
+## Run locally
 
 ```bash
-exit
+python3.9 -m venv venv
+source venv/bin/activate
+python -m pip install --upgrade pip wheel
+python -m pip install -r requirements.txt
+flake8 service tests --count --select=E9,F63,F7,F82 --show-source --statistics
+flake8 service tests --count --max-complexity=10 --max-line-length=127 --statistics
+nosetests -v --with-spec --spec-color --with-coverage --cover-package=service --cover-min-percentage=90
+gunicorn service:app --bind 0.0.0.0:8000
 ```
 
-## Tasks
+Open `http://localhost:8000/` for service information or `/health` for the
+health check.
 
+## OpenShift pipeline tasks
 
-## License
+The [Tekton task definitions](.tekton/tasks.yml) provide:
 
-Licensed under the Apache License. See [LICENSE](/LICENSE)
+- `cleanup`: removes previous checkout files, including hidden files, from
+  the shared `source` workspace before a new checkout.
+- `nose`: installs the project dependencies in an isolated environment and
+  runs the same unit tests and coverage threshold used by GitHub Actions.
 
-## Author
+In the course's OpenShift project, register the tasks with:
 
-Skills Network
+```bash
+oc apply -f .tekton/tasks.yml
+```
 
-## <h3 align="center"> © IBM Corporation 2023. All rights reserved. <h3/>
+Bind both tasks to the pipeline's shared persistent workspace. Run cleanup
+before cloning the repository, and run nose after cloning and before building
+and deploying the application.
+
+## API endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/` | Service information |
+| GET | `/health` | Health check |
+| GET | `/counters` | List counters |
+| POST | `/counters/<name>` | Create a counter |
+| GET | `/counters/<name>` | Read a counter |
+| PUT | `/counters/<name>` | Increment a counter |
+| DELETE | `/counters/<name>` | Delete a counter |
+
+## License and attribution
+
+Based on the Skills Network course template. Licensed under the
+[Apache License 2.0](LICENSE).
+
+© IBM Corporation 2023. All rights reserved.

@@ -1,0 +1,46 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cleanup
+spec:
+  description: Remove previous source files from the shared pipeline workspace.
+  workspaces:
+    - name: source
+  steps:
+    - name: remove-source
+      image: alpine:3.20
+      env:
+        - name: SOURCE_DIR
+          value: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -eu
+        test -n "$SOURCE_DIR"
+        test "$SOURCE_DIR" != /
+        test -d "$SOURCE_DIR"
+        find "$SOURCE_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+        echo "Workspace cleanup complete."
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: nose
+spec:
+  description: Run the counter service unit tests with nose and coverage.
+  workspaces:
+    - name: source
+  steps:
+    - name: run-unit-tests
+      image: python:3.9-slim
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: PIP_CACHE_DIR
+          value: /tmp/pip-cache
+      script: |
+        #!/bin/sh
+        set -eu
+        python -m venv /tmp/test-venv
+        . /tmp/test-venv/bin/activate
+        python -m pip install --upgrade pip wheel
+        python -m pip install -r requirements.txt
+        nosetests -v --with-spec --spec-color --with-coverage --cover-package=service --cover-min-percentage=90
