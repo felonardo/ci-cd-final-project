@@ -5,10 +5,10 @@ metadata:
 spec:
   pipelineRef:
     name: ci-cd-final-project
-  serviceAccountName: ci-cd-pipeline
+  serviceAccountName: pipeline
   timeouts:
     pipeline: 30m
   workspaces:
-    - name: pipeline-workspace
+    - name: output
       persistentVolumeClaim:
         claimName: pipeline-pvc

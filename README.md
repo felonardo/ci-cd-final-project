@@ -39,23 +39,27 @@ The [Tekton task definitions](.tekton/tasks.yml) provide:
   the shared `source` workspace before a new checkout.
 - `nose`: installs the project dependencies in an isolated environment and
   runs the same unit tests and coverage threshold used by GitHub Actions.
-- `clone-source`, `flake8`, `build-image`, and `deploy-app`: check out the
-  repository, lint the code, build the container, and deploy the tested image.
+- `flake8`: installs dependencies and runs the same lint checks used by
+  GitHub Actions.
+
+The lab's existing `git-clone`, `buildah`, and `openshift-client` ClusterTasks
+provide checkout, image build/push, and deployment.
 
 The [pipeline](.tekton/pipeline.yml) runs these stages in order:
 
 ```text
-cleanup → clone → lint → test → build → deploy
+cleanup → git-clone → flake8 → nose → buildah → deploy
 ```
 
-The build uses OpenShift's binary Docker build with the tested source from
-the shared workspace. Deployment selects the resulting image by digest and
-waits for the application's health check to pass.
+Buildah builds and pushes the container image using the tested source from
+the shared `output` workspace. The deploy step uses `openshift-client` to
+update the Deployment, restart its pods, and wait for the health check to pass.
 
 ## Run in the OpenShift lab
 
-The lab needs OpenShift Pipelines with the `tekton.dev/v1beta1` API, a default
-storage class, and the OpenShift build service and internal image registry.
+The lab needs OpenShift Pipelines with the `tekton.dev/v1beta1` API, the
+`git-clone`, `buildah`, and `openshift-client` ClusterTasks, the `pipeline`
+service account, and the internal image registry.
 Use the terminal and assigned OpenShift project in the Skills Network lab.
 
 Clone the project if it is not already present:
@@ -77,9 +81,9 @@ oc create -f .tekton/pipelinerun.yml
 ```
 
 The resources include a 1 GiB PVC named `pipeline-pvc` using the
-`skills-network-learner` storage class, a service account with namespace-scoped
-build/deployment permissions, an ImageStream, a BuildConfig,
-a Deployment, a Service, and a Route. The Deployment starts with zero replicas;
+`skills-network-learner` storage class, an ImageStream, a Deployment, a Service,
+and a Route. The pipeline uses the lab's existing `pipeline` service account.
+The Deployment starts with zero replicas;
 the deploy task starts one replica after the image build succeeds.
 
 Monitor the run in **Pipelines → ci-cd-final-project → PipelineRuns** or use:
