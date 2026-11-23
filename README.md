@@ -76,8 +76,9 @@ oc apply -f .tekton/pipeline.yml
 oc create -f .tekton/pipelinerun.yml
 ```
 
-The resources include a 1 GiB PVC named `pipeline-pvc`, a service account with
-namespace-scoped build/deployment permissions, an ImageStream, a BuildConfig,
+The resources include a 1 GiB PVC named `pipeline-pvc` using the
+`skills-network-learner` storage class, a service account with namespace-scoped
+build/deployment permissions, an ImageStream, a BuildConfig,
 a Deployment, a Service, and a Route. The Deployment starts with zero replicas;
 the deploy task starts one replica after the image build succeeds.
 

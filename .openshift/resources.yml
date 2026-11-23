@@ -4,6 +4,7 @@ metadata:
   name: pipeline-pvc
 spec:
   accessModes: [ReadWriteOnce]
+  storageClassName: skills-network-learner
   resources:
     requests:
       storage: 1Gi
